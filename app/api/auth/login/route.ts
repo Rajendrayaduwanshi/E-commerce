@@ -1,43 +1,40 @@
-import { connectToDB } from "@/lib/mongodb";
-import User from "@/models/User";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { connectDB } from "@/lib/connectDB";
+import { User } from "@/models/User";
+import { verifyPassword } from "@/lib/password";
+import { signAccessToken, createSessionAndRefreshToken } from "@/lib/auth";
+import { setRefreshCookie } from "@/lib/cookies";
 
-export async function POST(req: Request) {
-  try {
-    const { email, password } = await req.json();
+export async function POST(req: NextRequest) {
+  await connectDB();
+  const { email, password } = await req.json();
 
-    await connectToDB();
+  const user = await User.findOne({ email });
+  if (!user)
+    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
 
-    // Check if user exists
-    const user = await User.findOne({ email });
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+  const ok = await verifyPassword(password, user.passwordHash);
+  if (!ok)
+    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
 
-    // Compare password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return NextResponse.json(
-        { error: "Invalid credentials" },
-        { status: 401 }
-      );
-    }
+  const accessToken = await signAccessToken(user);
 
-    // Create JWT token
-    const token = jwt.sign(
-      { id: user._id, email: user.email },
-      process.env.JWT_SECRET!,
-      { expiresIn: "1h" }
-    );
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip") ||
+    "unknown";
 
-    return NextResponse.json({ message: "Login successfully", token });
-  } catch (error) {
-    console.error("Error in login API:", error);
-    return NextResponse.json(
-      { error: "Something went wrong" },
-      { status: 500 }
-    );
-  }
+  const { refreshToken, expiresAt } = await createSessionAndRefreshToken(user, {
+    userAgent: req.headers.get("user-agent") || "",
+    ip,
+  });
+
+  const response = NextResponse.json({
+    accessToken,
+    user: { id: String(user._id), role: user.role, email: user.email },
+  });
+
+  setRefreshCookie(response, refreshToken, expiresAt);
+
+  return response;
 }

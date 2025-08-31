@@ -1,23 +1,40 @@
-export async function registerAdmin(data: any) {
-  const res = await fetch("/api/auth/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...data, role: "admin" }),
-  });
-
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.message || "Registration failed");
-  }
-
-  return res.json();
-}
-
 import axios from "axios";
 
-const api = axios.create({ baseURL: "/api" });
+const api = axios.create({ 
+  baseURL: "/api",
+  headers: {"Content-Type": "application/json" },
+});
 
-export async function loginAdmin(data: { email: string; password: string }) {
-  const res = await api.post("/auth/login", { ...data, role: "admin" });
+type AuthResponse = {
+  user: {
+    id: string;
+    email: string;
+    role: "user" | "admin";
+  };
+  accessToken: string;
+};
+
+// ----------------------
+// Register Admin
+// ----------------------
+export async function registerAdmin(data: { email: string; password: string}) {
+  try {
+    const res = await api.post<AuthResponse>("/auth/register", {
+      ...data,
+      role: "admin",
+  });
   return res.data;
+  } catch (err: any) {
+    throw new Error(err.response?.data?.message || "Registration faild");
+  }
+}
+
+// ----------------------
+// Login Admin
+// ----------------------
+export async function loginAdmin(data: { email: string; password: string }) {
+  try {
+      const res = await api.post("/auth/login", { ...data, role: "admin" });
+  return res.data;
+  }
 }

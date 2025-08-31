@@ -1,55 +1,42 @@
-import { SignJWT, jwtVerify } from "jose";
+import { signJWT, verifyJWT, JWTPayload } from "@/lib/jwt";
 import crypto from "node:crypto";
 import { Session } from "@/models/Session";
 import type { ObjectId } from "mongoose";
 
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET!);
 const ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || "15m";
 const REFRESH_TOKEN_TTL = process.env.REFRESH_TOKEN_TTL || "30d";
-
-type JWTPayload = {
-  sub: string;
-  role: "user" | "admin";
-  jti?: string;
-  typ: "access" | "refresh";
-};
 
 export async function signAccessToken(user: {
   _id: ObjectId;
   role: "user" | "admin";
 }) {
-  const payload: JWTPayload = {
-    sub: String(user._id),
-    role: user.role,
-    typ: "access",
-  };
-  return await new SignJWT(payload)
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime(ACCESS_TOKEN_TTL)
-    .sign(SECRET);
+  return signJWT(
+    {
+      sub: String(user._id),
+      role: user.role,
+      typ: "access",
+    },
+    ACCESS_TOKEN_TTL
+  );
 }
 
 export async function signRefreshToken(
   user: { _id: ObjectId; role: "user" | "admin" },
   jti: string
 ) {
-  const payload: JWTPayload = {
-    sub: String(user._id),
-    role: user.role,
-    jti,
-    typ: "refresh",
-  };
-  return await new SignJWT(payload)
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime(REFRESH_TOKEN_TTL)
-    .sign(SECRET);
+  return signJWT(
+    {
+      sub: String(user._id),
+      role: user.role,
+      typ: "refresh",
+      jti,
+    },
+    REFRESH_TOKEN_TTL
+  );
 }
 
 export async function verifyToken<T = JWTPayload>(token: string) {
-  const { payload } = await jwtVerify(token, SECRET);
-  return payload as T;
+  return verifyJWT<T>(token);
 }
 
 export async function createSessionAndRefreshToken(
@@ -57,8 +44,8 @@ export async function createSessionAndRefreshToken(
   meta?: { userAgent?: string; ip?: string }
 ) {
   const jti = crypto.randomUUID();
-
   const expiresAt = new Date();
+
   if (String(REFRESH_TOKEN_TTL).endsWith("d")) {
     expiresAt.setDate(expiresAt.getDate() + parseInt(REFRESH_TOKEN_TTL));
   }

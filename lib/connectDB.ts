@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { Connection } from "mongoose";
 
 const MONGODB_URI = process.env.MONGODB_URI!;
 const DB_NAME = process.env.MONGODB_NAME || "ecommerce";
@@ -8,7 +8,7 @@ if (!MONGODB_URI) {
 }
 
 interface MongooseCache {
-  conn: typeof mongoose | null;
+  conn: Connection | null;
   promise: Promise<typeof mongoose> | null;
 }
 
@@ -19,7 +19,7 @@ if (!cached) {
   cached = (global as any).mongoose = { conn: null, promise: null };
 }
 
-export async function connectDB() {
+export async function connectDB(): Promise<Connection> {
   if (cached.conn) return cached.conn;
 
   if (!cached.promise) {
@@ -30,11 +30,12 @@ export async function connectDB() {
   }
 
   try {
-    cached.conn = await cached.promise;
+    const mongooseInstance = await cached.promise;
+    cached.conn = mongooseInstance.connection;
   } catch (err) {
     cached.promise = null;
     throw err;
   }
 
-  return cached.conn;
+  return cached.conn!;
 }

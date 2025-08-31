@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
+import { verifyJWT } from "@/lib/jwt";
 
 const PROTECTED_ROUTES = ["/api/profile", "/dashboard"];
 const ADMIN_ROUTES = ["/api/admin", "/admin"];
-
-function readRefreshCookie(req: NextRequest) {
-  const cookie = req.cookies.get(process.env.REFRESH_COOKIE_NAME || "rt");
-  return cookie?.value || "";
-}
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -30,7 +25,7 @@ export async function middleware(req: NextRequest) {
   }
 
   try {
-    const payload = await verifyToken(token);
+    const payload = await verifyJWT(token);
 
     if (payload.typ !== "access") throw new Error("Wrong token type");
 
@@ -44,7 +39,8 @@ export async function middleware(req: NextRequest) {
 
     // Token sahi hai
     return NextResponse.next();
-  } catch {
+  } catch (err) {
+    console.error("JWT Error", err);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 }

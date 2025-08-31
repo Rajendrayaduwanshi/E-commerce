@@ -1,53 +1,17 @@
 "use client";
 
-import React, { useContext, useEffect, useState } from "react";
-import * as authApi from "@/lib/api/auth";
-import { useRouter } from "next/navigation";
+import React, { useContext, createContext } from "react";
+import { useAuth } from "@/modules/auth/hooks/useAuth";
 
-type User = { id: string; name: string; email: string; role?: string } | null;
+const AuthContext = createContext<ReturnType<typeof useAuth> | null>(null);
 
-const AuthContext = React.createContext<{
-  user: User;
-  loading: boolean;
-  login: (data: { email: string; password: string }) => Promise<void>;
-} | null>(null);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const auth = useAuth();
+  return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>;
+}
 
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User>(null);
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/auth/me");
-        if (res.ok) {
-          const data = await res.json();
-          setUser(data.user || null);
-        }
-      } catch (err) {
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  const login = async (data: { email: string; password: string }) => {
-    const res = await authApi.loginAdmin(data);
-    setUser(res.user || null);
-    router.push("/users/account");
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, loading, login }}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
-export function useAuth() {
+export function useAuthContext() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  if (!ctx) throw new Error("useAuthContext must be inside AuthProvider");
   return ctx;
 }

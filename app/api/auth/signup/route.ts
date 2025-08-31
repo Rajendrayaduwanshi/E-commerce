@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/connectDB";
-import { User } from "@/models/User";
+import User from "@/models/User";
 import { hashPassword } from "@/lib/password";
 
 export async function POST(req: NextRequest) {
   await connectDB();
-  const { email, password } = await req.json();
+  const { name, email, password } = await req.json();
 
-  if (!email || !password) {
+  // Validation
+  if (!email || !password || !name) {
     return NextResponse.json(
-      { error: "Email & password required" },
+      { error: "Name, email & password required" },
       { status: 400 }
     );
   }
 
+  // Duplicate check
   const existUser = await User.findOne({ email });
   if (existUser) {
     return NextResponse.json(
@@ -22,10 +24,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const passwordHash = await hashPassword(password);
-  const user = await User.create({ email, passwordHash, role: "user" });
+  // Password hash
+  const hashed = await hashPassword(password);
+
+  // User create
+  const user = await User.create({
+    name,
+    email,
+    password: hashed, // schema ke field ka naam "password" hai
+    role: "user",
+  });
 
   return NextResponse.json({
-    user: { id: String(user._id), email: user.email, role: user.role },
+    user: {
+      id: String(user._id),
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    },
   });
 }

@@ -3,12 +3,11 @@ import { Session } from "@/models/Session";
 import { verifyToken } from "@/lib/auth";
 import { readRefreshCookie, clearRefreshCookie } from "@/lib/cookies";
 import { NextRequest, NextResponse } from "next/server";
-import { Ewert } from "next/font/google";
 
 export async function POST(req: NextRequest) {
   await connectDB();
 
-  const token = await readRefreshCookie(req);
+  const token = readRefreshCookie(req);
 
   if (token) {
     try {
@@ -21,7 +20,7 @@ export async function POST(req: NextRequest) {
         );
       }
     } catch {
-      /* ignore */
+      /* ignore invalid token */
     }
   }
 

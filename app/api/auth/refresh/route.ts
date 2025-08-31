@@ -3,12 +3,12 @@ import { connectDB } from "@/lib/connectDB";
 import { Session } from "@/models/Session";
 import { verifyToken, rotateRefreshToken, signAccessToken } from "@/lib/auth";
 import { setRefreshCookie, readRefreshCookie } from "@/lib/cookies";
-import { User } from "@/models/User";
+import User from "@/models/User";
 
 export async function POST(req: NextRequest) {
   await connectDB();
 
-  const token = await readRefreshCookie(req);
+  const token = readRefreshCookie(req);
   if (!token)
     return NextResponse.json(
       { error: "Missing refresh token" },
@@ -17,7 +17,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await verifyToken(token);
-    if (payload.typ !== "refresh" || !payload.jti) throw new Error("Bad token");
+    if (payload.typ !== "refresh" || !payload.jti) {
+      throw new Error("Bad token");
+    }
 
     const session = await Session.findOne({ jti: payload.jti });
     if (!session || session.revoked || new Date() > session.expiresAt) {
@@ -34,6 +36,7 @@ export async function POST(req: NextRequest) {
       req.headers.get("x-real-ip") ||
       "unknown";
 
+    // rotate old session + issue new refresh token
     const { refreshToken, expiresAt } = await rotateRefreshToken(
       payload.jti,
       user,
@@ -43,12 +46,14 @@ export async function POST(req: NextRequest) {
       }
     );
 
+    // create fresh access token
     const accessToken = await signAccessToken(user);
 
     const response = NextResponse.json({ accessToken });
     setRefreshCookie(response, refreshToken, expiresAt);
+
     return response;
-  } catch {
+  } catch (err) {
     return NextResponse.json(
       { error: "Invalid or expired token" },
       { status: 401 }
